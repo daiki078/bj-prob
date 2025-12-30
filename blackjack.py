@@ -1,89 +1,78 @@
-from enum import Enum, IntEnum
-
-class Suit(Enum):
-    SPADE = "♠"
-    HEART = "♥"
-    DIAMOND = "♦"
-    CLUB = "♣"
-
-
-class Rank(IntEnum):
-    ACE = 1
-    TWO = 2
-    THREE = 3
-    FOUR = 4
-    FIVE = 5
-    SIX = 6
-    SEVEN = 7
-    EIGHT = 8
-    NINE = 9
-    TEN = 10
-    JACK = 11
-    QUEEN = 12
-    KING = 13
-
-    @property
-    def points(self) -> int:
-        """Blackjack-style points (faces count as 10)."""
-        if self in (Rank.TEN, Rank.JACK, Rank.QUEEN, Rank.KING):
-            return 10
-        return int(self)
-    
-    @property
-    def label(self) -> str:
-        return {
-            Rank.ACE: "A",
-            Rank.TWO: "2",
-            Rank.THREE: "3",
-            Rank.FOUR: "4",
-            Rank.FIVE: "5",
-            Rank.SIX: "6",
-            Rank.SEVEN: "7",
-            Rank.EIGHT: "8",
-            Rank.NINE: "9",
-            Rank.TEN: "10",
-            Rank.JACK: "J",
-            Rank.QUEEN: "Q",
-            Rank.KING: "K",
-        }[self]
-
-
-class Card:
-    def __init__(self, suit: Suit, rank: Rank):
-        self.suit = suit
-        self.rank = rank
-
-    def __repr__(self):
-        return f"{self.rank.label}{self.suit.value}"
-
-
-class Deck:
-    def __init__(self):
-        self.deck = []
-        for suit in Suit:
-            for rank in Rank:
-                self.deck.append(Card(suit, rank))
-
-    def __repr__(self):
-        cards = " ".join(map(str, self.deck))
-        return f"Deck({len(self.deck)} cards): [{cards}]"
-
+def numerical_val(rank: str) -> int:
+    if rank == "A":
+        return 1
+    if rank == "T":
+        return 10
+    return int(rank)
 
 class Shoe:
     def __init__(self, num_decks: int = 7):
         self.num_decks = num_decks
-        self.shoe = [Deck() for _ in range(self.num_decks)]
-        self.cards = []
+        self.per_rank = 4 * num_decks  
 
-        for deck in self.shoe:
-            self.cards.extend(deck.deck)
+        self.shoe = {
+            "A": self.per_rank, "2": self.per_rank, "3": self.per_rank, "4": self.per_rank,
+            "5": self.per_rank, "6": self.per_rank, "7": self.per_rank, "8": self.per_rank,
+            "9": self.per_rank,
+            "T": 4 * self.per_rank,
+        }
+    
+    def total_cards(self):
+        return sum(self.shoe.values())
+    
+    def remove_cards(self, cards: tuple[str] = []):
+        for c in cards:
+            if c not in self.shoe:
+                raise KeyError(f"Invalid card: {c}")
+            if self.shoe[c] == 0:
+                raise KeyError(f"No cards left: {c}")
+            self.shoe[c] -= 1
+    
+    def __repr__(self):
+        return repr(self.shoe)
+
+class Player:
+    def __init__(self, hand=None):
+        if hand is None:
+            self.hand = []
+        else:
+            self.hand = list(hand)
+        self.bust = False
+
+
+    def total_val(self) -> tuple[int, bool]:
+        total = 0
+        aces = 0
+
+        for c in self.hand:
+            total += numerical_val(c)
+            if c == "A":
+                aces += 1
+
+        best = total
+        soft = False
+
+        while aces > 0 and best + 10 <= 21:
+            best += 10
+            aces -= 1
+            soft = True
+
+        self.bust = best > 21
+        return best, soft
+
+
+    
+    def hit(self, card: str = ""):
+        if self.bust == True:
+            return "Player is bust"
+
+
 
     def __repr__(self):
-        total_cards = sum(len(deck.deck) for deck in self.shoe)
-        return f"Shoe(num_decks={self.num_decks}, total_cards={total_cards})"
-    
-    
+        return repr(f"Hand: {self.hand}, Bust: {self.bust}")
 
 
-SHOE = Shoe(num_decks = 1)
-print(SHOE.cards)
+
+bob = Player(hand = ["8", "T", "3"])
+
+print(bob.total_val())
