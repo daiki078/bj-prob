@@ -185,12 +185,18 @@ class Game:
             print("Push")
 
         
+    def run(self):
+        self.play_round()
 
+        while not self.game_over:
+            again = input("Play another hand? [Y/n]: ").strip().lower()
+            if again in ("n", "no"):
+                self.game_over = True
+                break
 
-
-
+            self.play_round()
     
 
 game = Game(num_decks = 7)
 game.reset_shoe(num_decks = 7)
-game.play_round()
+game.run()
