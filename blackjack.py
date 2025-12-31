@@ -1,3 +1,11 @@
+"""
+TODO
+- handling input errors (ex. 1-10 valid)
+- starts next round when bust
+- dealer should stop when above 17 
+
+"""
+
 def numerical_val(rank: str) -> int:
     if rank == "A":
         return 1
@@ -62,20 +70,43 @@ class Human:
         return best, soft
 
     
-    def hit(self, card: str = "", shoe: Shoe | None = None):
+    def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
+        self.hand.append(card)
+        best, _ = self.total_val()
+
         if self.bust == True:
-            raise KeyError("Player is bust")
+            raise ValueError("Player is bust")
         elif self.total_val()[0] >= 21:
-            raise KeyError("Player has 21")
+            raise ValueError("Player has 21")
         
         if shoe is not None:
             shoe.remove_cards(card)
-        self.hand.append(card)
-        self.total_val()
+
+        can_continue = not self.bust or best == 21
+        return can_continue
 
         
     def __repr__(self):
         return repr(f"Hand: {self.hand}, Bust: {self.bust}")
+
+# class Player(Human):
+#     pass
+
+# class Dealer(Human):
+#     def __init__(self, hand=None):
+#         super().__init__(hand)
+
+#     def is_stand():
+#         best, soft = self.total_val()
+#         if best > 17:
+#             # stand
+#             pass
+#         elif not soft and best == 17:
+#             # stand
+#             pass
+#         else:
+#             # hit
+#             pass
 
 class Game:
     def __init__(self, num_decks = 7):
@@ -83,21 +114,25 @@ class Game:
         self.hand_count = 1
         self.player = Human()
         self.dealer = Human()
+        self.game_over = False
 
     def reset_shoe(self, num_decks = 7):
         self.shoe = Shoe(num_decks = num_decks)
         self.hand_count = 0
         print(f"Game Reset with num_decks: {num_decks}")
     
-    def play(self):
+    # play one round of the game
+    def play_round(self):
         while True:
             try:
                 dealer_total = self.dealer.total_val()
                 player_total = self.player.total_val()
-                d1 = input(f"------\nHand Number {self.hand_count}\nDealer: ?, Total: {dealer_total}\nPlayer: ??, Total: {player_total}\n-------\nEnter dealer card: ")
+                d1 = input(f"------\nHand Number {self.hand_count}\nDealer: ?, Total: {dealer_total}\nPlayer: ??, Total: {player_total}\n -------\nEnter dealer card: ")
+                
                 self.dealer.hit(d1)
             except Exception as e:
                 print(e)
+
             try:
                 dealer_total = self.dealer.total_val()
                 player_total = self.player.total_val()
@@ -105,6 +140,7 @@ class Game:
                 self.player.hit(p1)
             except Exception as e:
                 print(e)
+
             try:
                 dealer_total = self.dealer.total_val()
                 player_total = self.player.total_val()
@@ -124,7 +160,10 @@ class Game:
                         self.player_hitting = False
                     elif action == "hit":
                         hit_card = input("Enter new player card: ")
-                        self.player.hit(hit_card)
+                        can_continue = self.player.hit(hit_card)
+                        if not can_continue:
+                            self.player_hitting = False
+
                         player_total = self.player.total_val()
                         print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {dealer_total}\nPlayer: {self.player.hand}, Total: {player_total}\n------")
                 except Exception as e:
@@ -141,9 +180,14 @@ class Game:
                 except Exception as e:
                     print(e)
 
-
             return
+    
+    # def run():
+    #     while not self.game_over:
+    #         self.play_round()
+    #         game_over = input("play another hand? [Y/n]")
+    #         self.game_over = game_over
 
 game = Game(num_decks = 7)
 game.reset_shoe(num_decks = 7)
-game.play()
+game.play_round()
