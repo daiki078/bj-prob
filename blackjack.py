@@ -49,6 +49,9 @@ class Human:
             self.hand = list(hand)
         self.bust = False
 
+    def reset_hand(self):
+        self.hand = []
+
     def total_val(self) -> tuple[int, bool]:
         total = 0
         aces = 0
@@ -121,6 +124,9 @@ class Game:
         print(f"Game Reset with num_decks: {num_decks}")
 
     def play_round(self):
+        self.dealer.reset_hand()
+        self.player.reset_hand()
+
         #This part sets up the initial hands (one card for dealer and two for player)
         d1 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nEnter dealer card: ")
         self.dealer.hit(d1, self.shoe)
@@ -194,6 +200,7 @@ class Game:
                 self.game_over = True
                 break
 
+            self.hand_count += 1
             self.play_round()
     
 
