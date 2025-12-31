@@ -169,7 +169,11 @@ class Game:
             print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
             dealer_card_count += 1
 
-        #At this point either: the dealer busted or is between the range [17,21]; we check who won
+        if self.dealer.is_bust():
+            print("Dealer busts (win)")
+            return
+
+        #At this point either: the dealer is between the range [17,21]; we check who won
         player_total , _ = self.player.total_val()
         dealer_total , _ = self.dealer.total_val()
 
