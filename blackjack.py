@@ -5,6 +5,7 @@ TODO
 - dealer should stop when above 17 
 
 """
+from copy import deepcopy
 
 def numerical_val(rank: str) -> int:
     if rank == "A":
@@ -25,9 +26,11 @@ class Shoe:
             "T": 4 * self.per_rank,
         }
     
+    #Returns the total number of cards in Shoe
     def total_cards(self):
         return sum(self.shoe.values())
-    
+
+    #Remove cards from Shoe 
     def remove_cards(self, cards = None):
         if cards is None:
             cards = []
@@ -37,6 +40,10 @@ class Shoe:
             if self.shoe[c] == 0:
                 raise KeyError(f"No cards left: {c}")
             self.shoe[c] -= 1
+    
+    #Returns the probability of drawing a certain card from Shoe
+    def card_p(self, card: str = "") -> float:
+        return self.shoe[card] / self.total_cards()
     
     def __repr__(self):
         return repr(self.shoe)
@@ -49,9 +56,11 @@ class Human:
             self.hand = list(hand)
         self.bust = False
 
+    #Resets a human hand
     def reset_hand(self):
         self.hand = []
 
+    #Returns the game value of a hand, and indicates if the hand is soft
     def total_val(self) -> tuple[int, bool]:
         total = 0
         aces = 0
@@ -71,10 +80,12 @@ class Human:
 
         return best, soft
     
+    #Returns True if hand is bust
     def is_bust(self) -> bool:
         best, _=  self.total_val()
         return best > 21
     
+    #Returns True if hand is a (two-card) blackjack 
     def has_bj(self) -> bool:
         hand = self.hand
         bj = False
@@ -84,7 +95,7 @@ class Human:
 
         return bj
 
-    
+    #Appends a card to hand and also removes from Shoe
     def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
         self.hand.append(card)
         best, _ = self.total_val()
@@ -99,6 +110,7 @@ class Dealer(Human):
     def __init__(self, hand = None):
         super().__init__(hand)
 
+    #Returns true if dealer should take a card (hits on soft 17)
     def should_hit(self) -> bool:
         best, soft = self.total_val()
 
@@ -118,11 +130,13 @@ class Game:
         self.dealer = Dealer()
         self.game_over = False
 
+    #Resets game shoe
     def reset_shoe(self, num_decks = 7):
         self.shoe = Shoe(num_decks = num_decks)
         self.hand_count = 1
         print(f"Game Reset with num_decks: {num_decks}")
 
+    #Starts a round of blackjack
     def play_round(self):
         self.dealer.reset_hand()
         self.player.reset_hand()
@@ -179,9 +193,9 @@ class Game:
             print("Dealer busts (win)")
             return
 
-        #At this point either: the dealer is between the range [17,21]; we check who won
-        player_total , _ = self.player.total_val()
-        dealer_total , _ = self.dealer.total_val()
+        #At this point the dealer is in the range [17,21]; we check who won
+        player_total, _ = self.player.total_val()
+        dealer_total, _ = self.dealer.total_val()
 
         if player_total > dealer_total:
             print("Player beats dealer (win)")
@@ -190,7 +204,7 @@ class Game:
         else:
             print("Push")
 
-        
+    #Runs game multiple times    
     def run(self):
         self.play_round()
 
@@ -203,7 +217,22 @@ class Game:
             self.hand_count += 1
             self.play_round()
     
+class EV(Game):
+    def __init__(self, num_decks = 7):
+        super().__init__(num_decks)
+    
 
-game = Game(num_decks = 7)
+    def stand_EV(self) -> float:
+        curr_player = deepcopy(self.player)
+        curr_dealer = deepcopy(self.dealer)
+        curr_shoe = deepcopy(self.shoe)
+
+        for card, count in self.shoe.shoe.items():
+            break
+
+        return 0
+
+
+game = EV(num_decks = 7)
 game.reset_shoe(num_decks = 7)
 game.run()
