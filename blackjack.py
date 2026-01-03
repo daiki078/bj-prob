@@ -1,3 +1,12 @@
+"""
+TODO
+- handling input errors (ex. 1-10 valid)
+- starts next round when bust
+- dealer should stop when above 17 
+
+"""
+from copy import deepcopy
+
 def numerical_val(rank: str) -> int:
     if rank == "A":
         return 1
@@ -17,9 +26,11 @@ class Shoe:
             "T": 4 * self.per_rank,
         }
     
+    #Returns the total number of cards in Shoe
     def total_cards(self):
         return sum(self.shoe.values())
-    
+
+    #Remove cards from Shoe 
     def remove_cards(self, cards = None):
         if cards is None:
             cards = []
@@ -29,6 +40,10 @@ class Shoe:
             if self.shoe[c] == 0:
                 raise KeyError(f"No cards left: {c}")
             self.shoe[c] -= 1
+    
+    #Returns the probability of drawing a certain card from Shoe
+    def card_p(self, card: str = "") -> float:
+        return self.shoe[card] / self.total_cards()
     
     def __repr__(self):
         return repr(self.shoe)
@@ -41,6 +56,11 @@ class Human:
             self.hand = list(hand)
         self.bust = False
 
+    #Resets a human hand
+    def reset_hand(self):
+        self.hand = []
+
+    #Returns the game value of a hand, and indicates if the hand is soft
     def total_val(self) -> tuple[int, bool]:
         total = 0
         aces = 0
@@ -58,92 +78,161 @@ class Human:
             aces -= 1
             soft = True
 
-        self.bust = best > 21
         return best, soft
-
     
-    def hit(self, card: str = "", shoe: Shoe | None = None):
-        if self.bust == True:
-            raise KeyError("Player is bust")
-        elif self.total_val()[0] >= 21:
-            raise KeyError("Player has 21")
-        
+    #Returns True if hand is bust
+    def is_bust(self) -> bool:
+        best, _=  self.total_val()
+        return best > 21
+    
+    #Returns True if hand is a (two-card) blackjack 
+    def has_bj(self) -> bool:
+        hand = self.hand
+        bj = False
+
+        if (hand[0] == "A" and numerical_val(hand[1]) == 10) or (hand[1] == "A" and numerical_val(hand[0]) == 10):
+            bj = True
+
+        return bj
+
+    #Appends a card to hand and also removes from Shoe
+    def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
+        self.hand.append(card)
+        best, _ = self.total_val()
+
         if shoe is not None:
             shoe.remove_cards(card)
-        self.hand.append(card)
-        self.total_val()
 
-        
     def __repr__(self):
         return repr(f"Hand: {self.hand}, Bust: {self.bust}")
+
+class Dealer(Human):
+    def __init__(self, hand = None):
+        super().__init__(hand)
+
+    #Returns true if dealer should take a card (hits on soft 17)
+    def should_hit(self) -> bool:
+        best, soft = self.total_val()
+
+        if best > 17:
+            return False
+        elif best == 17 and not soft:
+            return False
+        else:
+            return True
+
 
 class Game:
     def __init__(self, num_decks = 7):
         self.shoe  = Shoe(num_decks = num_decks)
         self.hand_count = 1
         self.player = Human()
-        self.dealer = Human()
+        self.dealer = Dealer()
+        self.game_over = False
 
+    #Resets game shoe
     def reset_shoe(self, num_decks = 7):
         self.shoe = Shoe(num_decks = num_decks)
-        self.hand_count = 0
+        self.hand_count = 1
         print(f"Game Reset with num_decks: {num_decks}")
-    
-    def play(self):
-        while True:
-            try:
-                dealer_total = self.dealer.total_val()
-                player_total = self.player.total_val()
-                d1 = input(f"------\nHand Number {self.hand_count}\nDealer: ?, Total: {dealer_total}\nPlayer: ??, Total: {player_total}\n-------\nEnter dealer card: ")
-                self.dealer.hit(d1)
-            except Exception as e:
-                print(e)
-            try:
-                dealer_total = self.dealer.total_val()
-                player_total = self.player.total_val()
-                p1 = input(f"-------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {dealer_total}\nPlayer: ??, Total: {self.player.hand}\n-----\nEnter Player upcard 1: ")
-                self.player.hit(p1)
-            except Exception as e:
-                print(e)
-            try:
-                dealer_total = self.dealer.total_val()
-                player_total = self.player.total_val()
-                p2 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {dealer_total}\nPlayer: {self.player.hand}, Total: {player_total}\n------\nEnter Player upcard 2: ")
-                self.player.hit(p2)
-                player_total = self.player.total_val()
-                print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {dealer_total}\nPlayer: {self.player.hand}, Total: {player_total}\n------")
-                self.hand_count += 1
-            except Exception as e:
-                print(e)
 
-            self.player_hitting = True
-            while self.player_hitting:
-                try:
-                    action = input(f"Enter action (stand, hit): ")
-                    if action == "stand":
-                        self.player_hitting = False
-                    elif action == "hit":
-                        hit_card = input("Enter new player card: ")
-                        self.player.hit(hit_card)
-                        player_total = self.player.total_val()
-                        print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {dealer_total}\nPlayer: {self.player.hand}, Total: {player_total}\n------")
-                except Exception as e:
-                    print(e)
+    #Starts a round of blackjack
+    def play_round(self):
+        self.dealer.reset_hand()
+        self.player.reset_hand()
+
+        #This part sets up the initial hands (one card for dealer and two for player)
+        d1 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nEnter dealer card: ")
+        self.dealer.hit(d1, self.shoe)
+        p1 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nEnter player card 1: ")
+        self.player.hit(p1, self.shoe)
+        p2 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nEnter player card 2: ")
+        self.player.hit(p2, self.shoe)
+        print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
+
+        #This part handles the blackjack logic
+        if self.player.has_bj() and d1 != "A" and d1 != "T":
+            print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nPlayer has blackjack (win)")
+            return
+        elif self.player.has_bj() and (d1 == "A" or d1 == "T"):
+            d2 = input("Enter dealer card 2: ")
+            self.dealer.hit(d2, self.shoe)
+            if (d1 == "A" and d2 == "T") or (d1 == "T" and d2 == "A"):
+                print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nDealer also has blackjack (push)")
+                return
+            else:
+                print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nPlayer has blackjack (win)")
+                return
             
-            self.dealer_hitting = True
-            while self.dealer_hitting:
-                dealer_card = input("Enter new dealer card: ")
-                try:
-                    self.dealer.hit(dealer_card)
-                    dealer_total = self.dealer.total_val()
-                    self.dealer_hitting = dealer_total[0] <= 17 or dealer_total[1] == True
-                    print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {dealer_total}\nPlayer: {self.player.hand}, Total: {player_total}\n------")
-                except Exception as e:
-                    print(e)
+        #At this point we know the dealer and player doesn't have blackjack, so we continue with the game
+        player_card_count = 3
+        dealer_card_count = 2
+        while not self.player.is_bust() and self.player.total_val()[0] != 21:
+            action = input("Enter action (hit, stand): ")
+            if action == "stand":
+                break
+            elif action == "hit":
+                p3 = input(f"Enter player card {player_card_count}: ")
+                self.player.hit(p3, self.shoe)
+                print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
+                player_card_count += 1
+            
+        #The while loop above ended so either: player stood or they busted; here we check if they busted or got 21
+        if self.player.is_bust():
+            print("Player is bust (loss)")
+            return
+        
+        #If the code gets here that means the player didn't bust and are done hitting, so the dealer logic is handled here
+        while not self.dealer.is_bust() and self.dealer.should_hit():
+            d3 = input(f"Enter dealer card {dealer_card_count}: ")
+            self.dealer.hit(d3, self.shoe)
+            print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
+            dealer_card_count += 1
 
-
+        if self.dealer.is_bust():
+            print("Dealer busts (win)")
             return
 
-game = Game(num_decks = 7)
+        #At this point the dealer is in the range [17,21]; we check who won
+        player_total, _ = self.player.total_val()
+        dealer_total, _ = self.dealer.total_val()
+
+        if player_total > dealer_total:
+            print("Player beats dealer (win)")
+        elif player_total < dealer_total:
+            print("Player loses to dealer (lose)")
+        else:
+            print("Push")
+
+    #Runs game multiple times    
+    def run(self):
+        self.play_round()
+
+        while not self.game_over:
+            again = input("Play another hand? [Y/n]: ").strip().lower()
+            if again in ("n", "no"):
+                self.game_over = True
+                break
+
+            self.hand_count += 1
+            self.play_round()
+    
+class EV(Game):
+    def __init__(self, num_decks = 7):
+        super().__init__(num_decks)
+    
+
+    def stand_EV(self) -> float:
+        curr_player = deepcopy(self.player)
+        curr_dealer = deepcopy(self.dealer)
+        curr_shoe = deepcopy(self.shoe)
+
+        for card, count in self.shoe.shoe.items():
+            break
+
+        return 0
+
+
+game = EV(num_decks = 7)
 game.reset_shoe(num_decks = 7)
-game.play()
+game.run()
