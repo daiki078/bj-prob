@@ -1,10 +1,3 @@
-"""
-TODO
-- handling input errors (ex. 1-10 valid)
-- starts next round when bust
-- dealer should stop when above 17 
-
-"""
 from copy import deepcopy
 
 def numerical_val(rank: str) -> int:
@@ -34,6 +27,8 @@ class Shoe:
     def remove_cards(self, cards = None):
         if cards is None:
             cards = []
+        if isinstance(cards, str):
+            cards = [cards]
         for c in cards:
             if c not in self.shoe:
                 raise KeyError(f"Invalid card: {c}")
@@ -179,7 +174,7 @@ class Game:
             
         #The while loop above ended so either: player stood or they busted; here we check if they busted or got 21
         if self.player.is_bust():
-            print("Player is bust (loss)")
+            print("Player is bust (lose)")
             return
         
         #If the code gets here that means the player didn't bust and are done hitting, so the dealer logic is handled here
@@ -220,19 +215,49 @@ class Game:
 class EV(Game):
     def __init__(self, num_decks = 7):
         super().__init__(num_decks)
+
+    def dealer_outcome_p(self, dealer: Dealer, shoe: Shoe) -> dict:
+        if dealer.is_bust():
+            return {"bust": 1}
+        if not dealer.should_hit():
+            total, _ = dealer.total_val()
+            return {total: 1}
+        
+        outcomes = {}
+
+        for card, count in shoe.shoe.items():
+            if count == 0:
+                continue
+            draw_p = shoe.card_p(card)
+
+            next_dealer = deepcopy(dealer)
+            next_shoe = deepcopy(shoe)
+            next_dealer.hit(card, next_shoe)
+
+            for outcome, prob in self.dealer_outcome_p(next_dealer, next_shoe).items():
+                outcomes[outcome] = outcomes.get(outcome, 0) + draw_p * prob
+        return outcomes
     
 
     def stand_EV(self) -> float:
-        curr_player = deepcopy(self.player)
-        curr_dealer = deepcopy(self.dealer)
-        curr_shoe = deepcopy(self.shoe)
+        player_total, _ = self.player.total_val()
+        dealer_summand = 17
+        outcomes = self.dealer_outcome_p(self.dealer, self.shoe)
+        win_p = outcomes.get("bust", 0)
+        tie_p = outcomes.get(player_total, 0)
+        
+        while dealer_summand < player_total:
+            win_p += outcomes.get(dealer_summand, 0)
+            dealer_summand += 1
+        
+        return 2 * win_p + tie_p - 1
 
-        for card, count in self.shoe.shoe.items():
-            break
 
-        return 0
+game = EV(num_decks = 1)
+game.reset_shoe(num_decks = 1)
+game.dealer.hit("6")
+game.player.hit("T")
+game.player.hit("7")
 
-
-game = EV(num_decks = 7)
-game.reset_shoe(num_decks = 7)
-game.run()
+print(game.dealer_outcome_p(game.dealer, game.shoe))
+print(game.stand_EV())
