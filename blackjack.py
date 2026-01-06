@@ -135,6 +135,7 @@ class Game:
     def play_round(self):
         self.dealer.reset_hand()
         self.player.reset_hand()
+        ev = EV()
 
         #This part sets up the initial hands (one card for dealer and two for player)
         d1 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nEnter dealer card: ")
@@ -163,7 +164,7 @@ class Game:
         player_card_count = 3
         dealer_card_count = 2
         while not self.player.is_bust() and self.player.total_val()[0] != 21:
-            action = input("Enter action (hit, stand): ")
+            action = input(f"Enter action | hit (), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}): ")
             if action == "stand":
                 break
             elif action == "hit":
@@ -252,20 +253,4 @@ class EV:
 
 game = Game()
 game.reset_shoe(num_decks=1)
-game.dealer.hit("6", game.shoe)
-
-game.player.hit("T", game.shoe)
-game.player.hit("7", game.shoe)
-
-ev = EV()
-
-dealer_outcomes = ev.dealer_outcome_p(game.dealer, game.shoe)
-
-print("Dealer outcome probabilities:")
-for outcome, p in sorted(dealer_outcomes.items(), key=lambda x: str(x[0])):
-    print(f"  {outcome}: {p:.4f}")
-
-stand_ev = ev.stand_EV(game.player, game.dealer, game.shoe)
-
-print("\nStand EV:")
-print(f"  EV = {stand_ev:.4f}")
+game.run()
