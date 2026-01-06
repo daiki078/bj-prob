@@ -252,5 +252,5 @@ class EV:
 
 
 game = Game()
-game.reset_shoe(num_decks=1)
+game.reset_shoe(num_decks = 7)
 game.run()
