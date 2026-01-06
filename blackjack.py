@@ -93,7 +93,7 @@ class Human:
     #Appends a card to hand and also removes from Shoe
     def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
         self.hand.append(card)
-        best, _ = self.total_val()
+        self.total_val()
 
         if shoe is not None:
             shoe.remove_cards(card)
@@ -211,11 +211,8 @@ class Game:
 
             self.hand_count += 1
             self.play_round()
-    
-class EV(Game):
-    def __init__(self, num_decks = 7):
-        super().__init__(num_decks)
 
+class EV:
     def dealer_outcome_p(self, dealer: Dealer, shoe: Shoe) -> dict:
         if dealer.is_bust():
             return {"bust": 1}
@@ -239,10 +236,10 @@ class EV(Game):
         return outcomes
     
 
-    def stand_EV(self) -> float:
-        player_total, _ = self.player.total_val()
+    def stand_EV(self, player: Human, dealer: Dealer, shoe: Shoe) -> float:
+        player_total, _ = player.total_val()
         dealer_summand = 17
-        outcomes = self.dealer_outcome_p(self.dealer, self.shoe)
+        outcomes = self.dealer_outcome_p(dealer, shoe)
         win_p = outcomes.get("bust", 0)
         tie_p = outcomes.get(player_total, 0)
         
@@ -253,11 +250,22 @@ class EV(Game):
         return 2 * win_p + tie_p - 1
 
 
-game = EV(num_decks = 1)
-game.reset_shoe(num_decks = 1)
-game.dealer.hit("6")
-game.player.hit("T")
-game.player.hit("7")
+game = Game()
+game.reset_shoe(num_decks=1)
+game.dealer.hit("6", game.shoe)
 
-print(game.dealer_outcome_p(game.dealer, game.shoe))
-print(game.stand_EV())
+game.player.hit("T", game.shoe)
+game.player.hit("7", game.shoe)
+
+ev = EV()
+
+dealer_outcomes = ev.dealer_outcome_p(game.dealer, game.shoe)
+
+print("Dealer outcome probabilities:")
+for outcome, p in sorted(dealer_outcomes.items(), key=lambda x: str(x[0])):
+    print(f"  {outcome}: {p:.4f}")
+
+stand_ev = ev.stand_EV(game.player, game.dealer, game.shoe)
+
+print("\nStand EV:")
+print(f"  EV = {stand_ev:.4f}")
