@@ -8,7 +8,7 @@ def numerical_val(rank: str) -> int:
     return int(rank)
 
 class Shoe:
-    def __init__(self, num_decks: int = 7):
+    def __init__(self, num_decks: int = 8):
         self.num_decks = num_decks
         self.per_rank = 4 * num_decks  
 
@@ -89,6 +89,7 @@ class Human:
             bj = True
 
         return bj
+    
 
     #Appends a card to hand and also removes from Shoe
     def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
@@ -163,8 +164,12 @@ class Game:
         #At this point we know the dealer and player doesn't have blackjack, so we continue with the game
         player_card_count = 3
         dealer_card_count = 2
+
         while not self.player.is_bust() and self.player.total_val()[0] != 21:
-            action = input(f"Enter action | hit (), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}): ")
+            if player_card_count == 3:
+                action = input(f"Enter action | hit (), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}), double ({ev.double_EV(self.player, self.dealer, self.shoe)}): ")
+            else:
+                action = input(f"Enter action | hit (), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}): ")
             if action == "stand":
                 break
             elif action == "hit":
@@ -172,6 +177,12 @@ class Game:
                 self.player.hit(p3, self.shoe)
                 print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
                 player_card_count += 1
+            elif action == "double":
+                p3 = input(f"Enter player card {player_card_count}: ")
+                self.player.hit(p3, self.shoe)
+                print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
+                break
+
             
         #The while loop above ended so either: player stood or they busted; here we check if they busted or got 21
         if self.player.is_bust():
@@ -238,6 +249,9 @@ class EV:
     
 
     def stand_EV(self, player: Human, dealer: Dealer, shoe: Shoe) -> float:
+        if player.is_bust():
+            return -1
+        
         player_total, _ = player.total_val()
         dealer_summand = 17
         outcomes = self.dealer_outcome_p(dealer, shoe)
@@ -249,8 +263,30 @@ class EV:
             dealer_summand += 1
         
         return 2 * win_p + tie_p - 1
+    
+    def hit_EV(self, player: Human, dealer: Dealer, shoe: Shoe) -> float:
 
+        return 0
+    
+    def double_EV(self, player: Human, dealer: Dealer, shoe : Shoe) -> float:
+        ev = 0
+        for card, count in shoe.shoe.items():
+            if count == 0:
+                continue
+            draw_p = shoe.card_p(card)
+            player_copy = deepcopy(player)
+            dealer_copy = deepcopy(dealer)
+            shoe_copy = deepcopy(shoe)
+
+            player_copy.hit(card, shoe_copy)
+            
+            if player_copy.is_bust():
+                ev -= draw_p 
+            else:
+                ev += 2* draw_p * self.stand_EV(player_copy, dealer_copy, shoe_copy)
+
+        return ev
 
 game = Game()
-game.reset_shoe(num_decks = 7)
+game.reset_shoe(num_decks = 8)
 game.run()
