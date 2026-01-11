@@ -8,7 +8,7 @@ def numerical_val(rank: str) -> int:
     return int(rank)
 
 class Shoe:
-    def __init__(self, num_decks: int = 8):
+    def __init__(self, num_decks: int = 6):
         self.num_decks = num_decks
         self.per_rank = 4 * num_decks  
 
@@ -89,7 +89,6 @@ class Human:
             bj = True
 
         return bj
-    
 
     #Appends a card to hand and also removes from Shoe
     def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
@@ -119,7 +118,7 @@ class Dealer(Human):
 
 
 class Game:
-    def __init__(self, num_decks = 7):
+    def __init__(self, num_decks = 6):
         self.shoe  = Shoe(num_decks = num_decks)
         self.hand_count = 1
         self.player = Human()
@@ -127,7 +126,7 @@ class Game:
         self.game_over = False
 
     #Resets game shoe
-    def reset_shoe(self, num_decks = 7):
+    def reset_shoe(self, num_decks = 6):
         self.shoe = Shoe(num_decks = num_decks)
         self.hand_count = 1
         print(f"Game Reset with num_decks: {num_decks}")
@@ -167,9 +166,9 @@ class Game:
 
         while not self.player.is_bust() and self.player.total_val()[0] != 21:
             if player_card_count == 3:
-                action = input(f"Enter action | hit (), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}), double ({ev.double_EV(self.player, self.dealer, self.shoe)}): ")
+                action = input(f"Enter action | hit ({ev.hit_EV(self.player, self.dealer, self.shoe)}), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}), double ({ev.double_EV(self.player, self.dealer, self.shoe)}) : ")
             else:
-                action = input(f"Enter action | hit (), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}): ")
+                action = input(f"Enter action | hit ({ev.hit_EV(self.player, self.dealer, self.shoe)}), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}): ")
             if action == "stand":
                 break
             elif action == "hit":
@@ -225,6 +224,10 @@ class Game:
             self.play_round()
 
 class EV:
+    def __init__(self):
+        self.opt_cache = {}   # state -> optimal EV
+        self.hit_cache = {}   # optional: state -> hit EV
+
     def dealer_outcome_p(self, dealer: Dealer, shoe: Shoe) -> dict:
         if dealer.is_bust():
             return {"bust": 1}
@@ -264,11 +267,51 @@ class EV:
         
         return 2 * win_p + tie_p - 1
     
-    def hit_EV(self, player: Human, dealer: Dealer, shoe: Shoe) -> float:
+    def optimal_EV(self, player, dealer, shoe):
+        if player.is_bust():
+            return -1.0
 
-        return 0
+        key = (tuple(sorted(player.hand)), tuple(sorted(dealer.hand)), tuple(shoe.shoe.items()))
+        if key in self.opt_cache:
+            return self.opt_cache[key]
+
+        stand = self.stand_EV(player, dealer, shoe)
+        hit = self.hit_EV(player, dealer, shoe)
+        val = max(stand, hit)
+
+        self.opt_cache[key] = val
+        return val
+
+    
+    def hit_EV(self, player, dealer, shoe):
+        if player.is_bust():
+            return -1.0
+
+        key = (tuple(sorted(player.hand)), tuple(sorted(dealer.hand)), tuple(shoe.shoe.items()))
+        if key in self.hit_cache:
+            return self.hit_cache[key]
+
+        ev = 0.0
+        total_cards = shoe.total_cards()
+
+        for card, count in shoe.shoe.items():
+            if count == 0:
+                continue
+            p = count / total_cards
+
+            player_copy = deepcopy(player)
+            dealer_copy = deepcopy(dealer)
+            shoe_copy = deepcopy(shoe)
+            player_copy.hit(card, shoe_copy)
+
+            ev += p * self.optimal_EV(player_copy, dealer_copy, shoe_copy)
+
+        self.hit_cache[key] = ev
+        return ev
+
     
     def double_EV(self, player: Human, dealer: Dealer, shoe : Shoe) -> float:
+        
         ev = 0
         for card, count in shoe.shoe.items():
             if count == 0:
@@ -279,14 +322,11 @@ class EV:
             shoe_copy = deepcopy(shoe)
 
             player_copy.hit(card, shoe_copy)
-            
-            if player_copy.is_bust():
-                ev -= draw_p 
-            else:
-                ev += 2* draw_p * self.stand_EV(player_copy, dealer_copy, shoe_copy)
+
+            ev += 2* draw_p * self.stand_EV(player_copy, dealer_copy, shoe_copy)
 
         return ev
 
 game = Game()
-game.reset_shoe(num_decks = 8)
+game.reset_shoe(num_decks = 6)
 game.run()
