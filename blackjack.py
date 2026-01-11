@@ -1,10 +1,3 @@
-"""
-TODO
-- handling input errors (ex. 1-10 valid)
-- starts next round when bust
-- dealer should stop when above 17 
-
-"""
 from copy import deepcopy
 
 def numerical_val(rank: str) -> int:
@@ -15,7 +8,7 @@ def numerical_val(rank: str) -> int:
     return int(rank)
 
 class Shoe:
-    def __init__(self, num_decks: int = 7):
+    def __init__(self, num_decks: int = 6):
         self.num_decks = num_decks
         self.per_rank = 4 * num_decks  
 
@@ -34,6 +27,8 @@ class Shoe:
     def remove_cards(self, cards = None):
         if cards is None:
             cards = []
+        if isinstance(cards, str):
+            cards = [cards]
         for c in cards:
             if c not in self.shoe:
                 raise KeyError(f"Invalid card: {c}")
@@ -98,7 +93,7 @@ class Human:
     #Appends a card to hand and also removes from Shoe
     def hit(self, card: str = "", shoe: Shoe | None = None) -> bool:
         self.hand.append(card)
-        best, _ = self.total_val()
+        self.total_val()
 
         if shoe is not None:
             shoe.remove_cards(card)
@@ -123,7 +118,7 @@ class Dealer(Human):
 
 
 class Game:
-    def __init__(self, num_decks = 7):
+    def __init__(self, num_decks = 6):
         self.shoe  = Shoe(num_decks = num_decks)
         self.hand_count = 1
         self.player = Human()
@@ -131,7 +126,7 @@ class Game:
         self.game_over = False
 
     #Resets game shoe
-    def reset_shoe(self, num_decks = 7):
+    def reset_shoe(self, num_decks = 6):
         self.shoe = Shoe(num_decks = num_decks)
         self.hand_count = 1
         print(f"Game Reset with num_decks: {num_decks}")
@@ -140,6 +135,7 @@ class Game:
     def play_round(self):
         self.dealer.reset_hand()
         self.player.reset_hand()
+        ev = EV()
 
         #This part sets up the initial hands (one card for dealer and two for player)
         d1 = input(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------\nEnter dealer card: ")
@@ -167,8 +163,12 @@ class Game:
         #At this point we know the dealer and player doesn't have blackjack, so we continue with the game
         player_card_count = 3
         dealer_card_count = 2
+
         while not self.player.is_bust() and self.player.total_val()[0] != 21:
-            action = input("Enter action (hit, stand): ")
+            if player_card_count == 3:
+                action = input(f"Enter action | hit ({ev.hit_EV(self.player, self.dealer, self.shoe)}), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}), double ({ev.double_EV(self.player, self.dealer, self.shoe)}) : ")
+            else:
+                action = input(f"Enter action | hit ({ev.hit_EV(self.player, self.dealer, self.shoe)}), stand ({ev.stand_EV(self.player, self.dealer, self.shoe)}): ")
             if action == "stand":
                 break
             elif action == "hit":
@@ -176,10 +176,16 @@ class Game:
                 self.player.hit(p3, self.shoe)
                 print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
                 player_card_count += 1
+            elif action == "double":
+                p3 = input(f"Enter player card {player_card_count}: ")
+                self.player.hit(p3, self.shoe)
+                print(f"------\nHand Number {self.hand_count}\nDealer: {self.dealer.hand}, Total: {self.dealer.total_val()}\nPlayer: {self.player.hand}, Total: {self.player.total_val()}\n-------")
+                break
+
             
         #The while loop above ended so either: player stood or they busted; here we check if they busted or got 21
         if self.player.is_bust():
-            print("Player is bust (loss)")
+            print("Player is bust (lose)")
             return
         
         #If the code gets here that means the player didn't bust and are done hitting, so the dealer logic is handled here
@@ -216,23 +222,111 @@ class Game:
 
             self.hand_count += 1
             self.play_round()
+
+class EV:
+    def __init__(self):
+        self.opt_cache = {}   # state -> optimal EV
+        self.hit_cache = {}   # optional: state -> hit EV
+
+    def dealer_outcome_p(self, dealer: Dealer, shoe: Shoe) -> dict:
+        if dealer.is_bust():
+            return {"bust": 1}
+        if not dealer.should_hit():
+            total, _ = dealer.total_val()
+            return {total: 1}
+        
+        outcomes = {}
+
+        for card, count in shoe.shoe.items():
+            if count == 0:
+                continue
+            draw_p = shoe.card_p(card)
+
+            next_dealer = deepcopy(dealer)
+            next_shoe = deepcopy(shoe)
+            next_dealer.hit(card, next_shoe)
+
+            for outcome, prob in self.dealer_outcome_p(next_dealer, next_shoe).items():
+                outcomes[outcome] = outcomes.get(outcome, 0) + draw_p * prob
+        return outcomes
     
-class EV(Game):
-    def __init__(self, num_decks = 7):
-        super().__init__(num_decks)
+
+    def stand_EV(self, player: Human, dealer: Dealer, shoe: Shoe) -> float:
+        if player.is_bust():
+            return -1
+        
+        player_total, _ = player.total_val()
+        dealer_summand = 17
+        outcomes = self.dealer_outcome_p(dealer, shoe)
+        win_p = outcomes.get("bust", 0)
+        tie_p = outcomes.get(player_total, 0)
+        
+        while dealer_summand < player_total:
+            win_p += outcomes.get(dealer_summand, 0)
+            dealer_summand += 1
+        
+        return 2 * win_p + tie_p - 1
     
+    def optimal_EV(self, player, dealer, shoe):
+        if player.is_bust():
+            return -1.0
 
-    def stand_EV(self) -> float:
-        curr_player = deepcopy(self.player)
-        curr_dealer = deepcopy(self.dealer)
-        curr_shoe = deepcopy(self.shoe)
+        key = (tuple(sorted(player.hand)), tuple(sorted(dealer.hand)), tuple(shoe.shoe.items()))
+        if key in self.opt_cache:
+            return self.opt_cache[key]
 
-        for card, count in self.shoe.shoe.items():
-            break
+        stand = self.stand_EV(player, dealer, shoe)
+        hit = self.hit_EV(player, dealer, shoe)
+        val = max(stand, hit)
 
-        return 0
+        self.opt_cache[key] = val
+        return val
 
+    
+    def hit_EV(self, player, dealer, shoe):
+        if player.is_bust():
+            return -1.0
 
-game = EV(num_decks = 7)
-game.reset_shoe(num_decks = 7)
+        key = (tuple(sorted(player.hand)), tuple(sorted(dealer.hand)), tuple(shoe.shoe.items()))
+        if key in self.hit_cache:
+            return self.hit_cache[key]
+
+        ev = 0.0
+        total_cards = shoe.total_cards()
+
+        for card, count in shoe.shoe.items():
+            if count == 0:
+                continue
+            p = count / total_cards
+
+            player_copy = deepcopy(player)
+            dealer_copy = deepcopy(dealer)
+            shoe_copy = deepcopy(shoe)
+            player_copy.hit(card, shoe_copy)
+
+            ev += p * self.optimal_EV(player_copy, dealer_copy, shoe_copy)
+
+        self.hit_cache[key] = ev
+        return ev
+
+    
+    def double_EV(self, player: Human, dealer: Dealer, shoe : Shoe) -> float:
+        
+        ev = 0
+        for card, count in shoe.shoe.items():
+            if count == 0:
+                continue
+            draw_p = shoe.card_p(card)
+            player_copy = deepcopy(player)
+            dealer_copy = deepcopy(dealer)
+            shoe_copy = deepcopy(shoe)
+
+            player_copy.hit(card, shoe_copy)
+
+            ev += 2* draw_p * self.stand_EV(player_copy, dealer_copy, shoe_copy)
+
+        return ev
+
+game = Game()
+game.reset_shoe(num_decks = 6)
 game.run()
